@@ -1,0 +1,338 @@
+## Trie (Keyword Tree)
+
+- A tree-based data structure, name come from "re**trie**val"
+- Each **node** stores **a letter** from the alphabet and **each word corresponds to a path** in this tree
+- Can be used to store the Dictionary
+  - Mark nodes corresponding to end of words(wor**d$**) and store link(pointer) to the associated postings 
+  - Can be used to answer **prefix** **search** such as in **Auto-complete**
+
+### Creating a Trie
+
+Therefore, we will start traverse the trie from the root node, and follow the algorithm below:
+
+1. Set the current node to be the root node
+2. Set the current character as the first character of the input word
+3. Check if the current character is a child of the current node
+   - If **yes**, set the current node to be this child node, set the current character to the next character in the input word, and perform this step again
+   - If **no**, it means from this character onwards, we will need to create new nodes and insert them into the trie
+
+### Python Implementation 
+
+#### Node Structure
+
+```python
+class TrieNode:
+    """A node in the trie structure"""
+
+    def __init__(self, char):
+        # the character stored in this node
+        self.char = char
+
+        # whether this can be the end of a word
+        self.is_end = False
+
+        # a counter indicating how many times a word is inserted
+        # (if this node's is_end is True)
+        self.counter = 0
+
+        # a dictionary of child nodes
+        # keys are characters, values are nodes
+        self.children = {}
+```
+
+#### Trie Tree
+
+```python
+class Trie(object):
+    """The trie object"""
+
+    def __init__(self):
+        """
+        The trie has at least the root node.
+        The root node does not store any character
+        """
+        self.root = TrieNode("")
+    
+    def insert(self, word):
+        """Insert a word into the trie"""
+        node = self.root
+        
+        # Loop through each character in the word
+        # Check if there is no child containing the character, create a new child for the current node
+        for char in word:
+            if char in node.children:
+                node = node.children[char]
+            else:
+                # If a character is not found,
+                # create a new node in the trie
+                new_node = TrieNode(char)
+                node.children[char] = new_node
+                node = new_node
+        
+        # Mark the end of a word
+        node.is_end = True
+
+        # Increment the counter to indicate that we see this word once more
+        node.counter += 1
+        
+    def dfs(self, node, prefix):
+        """Depth-first traversal of the trie
+        
+        Args:
+            - node: the node to start with
+            - prefix: the current prefix, for tracing a
+                word while traversing the trie
+        """
+        if node.is_end:
+            self.output.append((prefix + node.char, node.counter))
+        
+        for child in node.children.values():
+            self.dfs(child, prefix + node.char)
+        
+    def query(self, x):
+        """Given an input (a prefix), retrieve all words stored in
+        the trie with that prefix, sort the words by the number of 
+        times they have been inserted
+        """
+        # Use a variable within the class to keep all possible outputs
+        # As there can be more than one word with such prefix
+        self.output = []
+        node = self.root
+        
+        # Check if the prefix is in the trie
+        for char in x:
+            if char in node.children:
+                node = node.children[char]
+            else:
+                # cannot found the prefix, return empty list
+                return []
+        
+        # Traverse the trie to get all candidates
+        self.dfs(node, x[:-1])
+
+        # Sort the results in reverse order and return
+        return sorted(self.output, key=lambda x: x[1], reverse=True)
+```
+
+https://albertauyeung.github.io/2020/06/15/python-trie.html#:~:text=Trie%20is%20a%20tree%2Dlike,trie%20represents%20a%20unique%20word.
+
+### Complexity of a Trie
+
+**Construction Complexity: O(|Dictionary|) or O(m*N)**
+
+- m longest word in the Dictionary
+- N total number of words in the Dictionary
+
+**Search complexity: O(m)**
+
+Trie vs Hash-table
+
+# Tolerant Retrieval
+
+What to do if there is **no exact match** between **query term** and **document term**
+
+- Wildcard Queries (istanb*)
+
+- Spelling Correction
+
+
+
+## Wildcard Queries
+
+How to handle * in the middle of a term
+
+Example: c*sar
+
+- We can look up c* and *sar in the B-tree and intersect the two term sets
+- Expensive
+- Alternatives: **permuterm** index and **k**-**gram** index
+  - Permuterm index: Caesar --> {caesar$, aesar$c, esar$ca, sar$cae, ....}
+  - k-gram index: (k = 2) Caesar --> {ca, ae, es, sa, ar, r$}
+
+
+
+### Processing wilcarded terms in a bigram index
+
+- Query **mon*** can no be run as: **$m** AND **mo** AND **on**
+- Gets us all terms with the prefix mon...
+- ....but also **many "false positives"** like MOON
+- We must postfilter these terms against query
+- Surviving terms are then looked up in term-document inverted index
+- k-gram index vs permuterm index
+  - k-gram index is more space efficient.
+  - Permuterm index doesn't require postfiltering (Not difficult)
+
+### Processing **Wildcard Queries** in the **Term-Document Index**
+
+- Problem 1: We must potentially execute a large number of Boolean queries.
+  - For [gen* universit*]: geneva university OR geneva université OR genève université ......
+  - Very expensive
+- Problem 2: Users hate
+- If you encourage users, this would increase the costing of answering queries
+
+## Spelling correction
+
+- Two principal uses
+  - Correcting documents being indexes
+  - **Correcting user queries**
+
+* Two different approaches for spelling correction
+* **Isolated word** spelling correction
+  * Check each word on its own for misspelling
+  * Will not catch typos resulting in correctly spelled words.
+    * I flew **<u>form</u>** Heathrow to Narite
+* **Context-sensitive** spelling correction
+  * Look at surrounding words
+  * Can correct form/from error above
+
+
+
+### Document correction
+
+- Especially needed for OCR(Optical Character Recognition)'ed documents
+  - Can use domain-specific knowledge
+    - Ex: **rn/m confusion**;
+    - OCR can confuse O and D more often than it would confuse O and I
+    - (adjacent on the QWERTY keyboard, so more likely interchanged in typing)
+- But also: web pages and even printed materials have typos
+
+- **Ofter we don't change the documents, but aim to fix the query-document mapping** 
+
+
+
+### Query mis-spellings
+
+Mostly dealing with this one
+
+Our principal focus here
+
+-  E.g., the query Albert Einstain
+- We can either:
+  - Retrieve documents indexed by the correct spelling, OR
+
+  - Return several suggested alternative queries with the correct
+    spelling
+    - Did you mean … ?
+
+damerue - levenstian --> 4th oper -> transpose cat vs act
+
+### Isolated word correction
+
+- Fundamental premise -- there is a lexicon from which the correct spellings come
+- Two basic choices for this
+  - A standard lexicon such as
+    - Webster' English Dictionary
+    - An "industry-specific" lexicon -- hand-maintained
+  - The lexicon of the indexed corpus
+    - Ex. all words on the web
+    - All names, acronyms, etc.
+    - ==Including mis-spellings==
+- Given a lexicon and a character sequence Q, return the word in the lexicon closest to Q.
+- What's "closest"?
+- Following alternatives:
+  - Edit distance(Levenshtein distance)
+  - Weighted edit distance
+  - n-gram overlap
+
+## Edit Distance
+
+- The edit distance between string s~1~ and string s~2~ is the minimum number of basic operations that convert s~1~ to s~2~
+
+- Basic operations:
+  - delete
+  - insert
+  - replace
+  - switch (transpose)
+
+- Dynamic programming problem: solves problems by combining solutions to sub problems
+
+- **Levenshtein distance**: The admissible basic operations are insert, delete and replace (Edit distance usually refers to Levenshtein distance)
+
+  - Levenshtein Distance == 1:  dog -> do (delete g)
+
+  - Levenshtein Distance == 1:  cat -> cart (insert r)
+
+  - Levenshtein Distance == 1:  cat -> cut (replace *a* with *u*)
+
+  - Levenshtein Distance == 2:  cat - act (replace *c* with *a*, replace *c* with *a*)
+
+    
+
+- **Damerau-Levenshtein Distance**: Includes transposition as a fourth possible operation
+  - Damerau-Levenshtein Distance == 1:  cat -> act (switch place *a* with *c*)
+  - ==Better for Keyword errors==
+
+- **Hamming distance**: only allows substitution (only applies to strings of the same length)
+
+  
+
+### Defining Edit Distance
+
+- For two strings S~1~ of length n, S~2~ of length m
+  - distance(i,j) or D(i,j)
+    - means the edit distance of S~1~ [1....i] and S~2~ [1....j]
+    - the minimum number of edit operations needed to transform the first *i* characters of S~1~ into the first *j* characters of S~2~
+    - The edit distance of S~1~ , S~2~ is D(n,m)
+- We compute D(n,m) by computing D(i,j) for all i == (0 < i < n) and j == (0 < j < m)
+
+### Dynamic Programming
+
+- Dynamic programming solves problems by combining solutions to sub-problems
+  - Break the problem into smaller sub-problems
+  - Solve these sub-problems optimally
+  - Use these optimal solutions to construct an optimal solution to the original problem.
+- **Sub-problem** in the case of edit distance: ==what is the edit distance of two prefixes?==
+
+A tabular computation of D(n,m)
+
+- Bottom up - edit distance
+  - D(i,0) = i (delete string i)
+  - D(0,j) = convert (add string j)
+  - D(convert first --> i  string characters of s1 , first j character of s2)
+
+Base conditions:
+
+- D(i,0) = i (**Delete** the character(s))
+  
+  - Converting i character(s) of S~1~ to 0 characters of S~2~
+  
+- D(0,j) = j (**Insert** the character(s))
+  
+- Converting 0 characters of S~1~ to j characters of S~2~
+  
+- Recurrence Relation:
+
+  
+
+  ​			  |     D(i-1, j) + 1   (delete)
+
+ D(i,j) = min {      D(i, j-1) + 1   (insert)
+
+​					|      D(i-1, j-1)   if  S~1~ !=  S~2~ :   +1 (replace)
+
+​											 if  S~1~ ==  S~2~:   +0 (copy)											
+
+
+
+![image-20201115190334285](../../../AppData/Roaming/Typora/typora-user-images/image-20201115190334285.png)
+
+
+
+## Complexity
+
+Time: O(nm)
+
+Space: O(nm)
+
+Backtrace: O(n+m)
+
+
+
+## Weighted Edit Distance
+
+- As above, but weight of an operation depends on the characters involved
+- Meant to capture keyboard errors, e.g., m more likely to be mistyped as n than as q
+- Therefore, replacing m by n is a smaller edit distance than by q
+- We now require a weight matrix as input
+- Modify dynamic programming to handle weights
+

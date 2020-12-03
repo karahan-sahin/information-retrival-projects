@@ -1,0 +1,198 @@
+# Index Compression
+
+
+
+## Lossless vs. Lossy compression
+
+- Lossy compression: Discard some information
+- Several of the preprocessing steps can be viewed as lossy compression: case folding, stop words, stemming, number elimination
+- **Lossless compression: All information is preserved**
+
+
+
+## Statistical properties of text (Continued)
+
+
+
+### Vocubulary vs Collection Size
+
+$$
+Heaps' Law:  M = kT^{b}
+$$
+
+- M is the size of the vocabulary
+- T is the number of tokens in the collection
+- Typical values(For English): 30 &le; *k* &le; 100 and b &asymp; 0.5
+- In a log-log plot of vocabulary size M vs. T, 
+  - Heaps' Law predicts a line with slope about 1/2
+  - log M = log k + b* log T
+  - An empirical finding("enpirical law")
+
+![image-20201203111457596](../../../AppData/Roaming/Typora/typora-user-images/image-20201203111457596.png)
+
+​			                       	Heaps' Law vs RCV1
+
+#### Word distributions 
+
+- Words are not distributed evenly!
+- Same goes for the letters of the alphabet (ETAOIN SHRDLU), city sizes, wealth..
+- Usually, 80/20 rule applies (80% of the wealth goes to 20% of the people or it takes 80% of the effort to build the easier 20% of the system)
+
+### Stop words
+
+- 250-300 most common words in English account for 50% or more of a given text
+- Example: "the" and "of" represent 10% of tokens "and", "to", "a" and "in" -- another 10%. Next 12 words -- another 10%
+- Moby Dick Ch. 1: 859 unique words (types), 2256 word occurences (tokens). Top 65 types cover 1132 token (> 50%)
+
+### Zipf's Law
+
+- Heaps' law estimates the vocabulary size in collections
+- We also study the relative frequencies of terms
+- In natural language, there are a few very frequent terms and very many very rare terms
+- Zipf's Law: The i^th^ most frequent term has frequency proportional to 1/i.
+- cf~i~ &prop; 1/i = K/i where *K* is a normalizing constant
+- cf~i~ is <u>collection frequency</u>: the number of occurrences of the term t~i~ in the collection
+
+- If the most frequent term (the) occurs cf~1~ times
+  - then the **second** most frequent term (of) occurs cf~1~ /2 times
+  - then the **third** most frequent term (and) occurs cf~1~ /3 times...
+
+- Equivalent: cf~i~ = K/ i where K is a normalizing factor, so
+  - log cf~i~ = log K - log i
+  - Linear relationship between log cf~i~ and log i
+- Another **power law relationship** (like Heap's Law)
+
+#### Does Real Data Fit Zipf's Law?
+
+- A law of the form y = kx^c^ is called a power law
+- **Zipf's law is a power law with c = -1**
+- On a log-log plot, power laws give a straight line with *slope c*
+
+$$
+log(y) = log(kx^{c}) = log~k~ + c.log(x)
+$$
+
+- Zipf is quite accurate except for very high and low rank
+
+![image-20201203114642574](../../../AppData/Roaming/Typora/typora-user-images/image-20201203114642574.png)
+
+​										Heaps law vs RCV1
+
+
+
+#### Zipf's Law Impact on IR
+
+- Pros:
+  - Stopword account for a large fraction of text. So, eliminating them considerably reduces inverted index storage costs
+  - Postings list for most remaining words in the inverted index will be short since they are rare, making retrieval fast
+- Cons: 
+  - Most words are very rare. So, gathering sufficient data for meaningful statistical analysis (for spelling correction) is difficult
+
+
+
+## Dictionary Compression
+
+- Search begins with the dictionary
+- We want to **keep it in memory**
+- Embedded/ mobile devices may have **very little memory**
+- Even if the dictionary isn't in memory, we want to be small for a fast search startup time
+- So, compressing the dictionary is important
+
+
+
+### Dictionary Storage - first cup
+
+- Array of fixed-width entries
+  - ~400,000 terms: 28 bytes/term = 11.2 MB
+
+![Fixed-width Arrat](Fixed-width Array.PNG)
+
+- Fİxed-width terms are wasteful
+  - Most of the bytes in the **Term** column are wasted - we are allor 20 bytes for 1 letter terms
+    - And we still can't handle --> *hydrochlorofluorocarbons*
+  - Average dictionary word in English: ~8 chars
+
+
+
+### Compressing the term list: Dictionary-as-a-String
+
+- Store dictionary as a (long) string of characters:
+  - Pointer to next word shows end of current word
+  - Hope to save up to 60% of dictionary space
+
+![dict-as-a-string](dict-as-a-string.PNG)
+
+#### Space for the Dictionary-As-A-String
+
+- 4 bytes per term for Document Freq
+- 4 bytes per term for pointer to Postings
+- 3 bytes per term pointer
+- Avg. 8 bytes per term in term string
+- 400K terms x 19 bytes = 7.6 MB (Against 11.2 MB for fixed width)
+
+
+
+### Blocking
+
+- Store pointers to every k^th^ term string
+- No 3 bytes for each term but a pointer to k sized block
+- **Need to store term lengths (1 extra byte)**
+- Term length is to go to the next block
+
+![block](block.PNG)
+
+#### Net 
+
+- Example for block size *k* = 4
+- Save 5 bytes per four-term
+  - k=4 --> x3 byte pointer = 12 bytes for Dict-as-a-string 
+  - k=4 --> (3 byte pointer) + (4 x 1 byte term length) = 7 bytes for Blocking
+- Total: 400,000 / 4 * 5 = 0.5 MB
+- Saved another ~0.5 MB. This reduces the size of the dictionary from 7.6 MB to 7.1 MB.
+- We can save more with larger *k*
+- Why not larger *k*?
+  - Search times expands
+
+#### Dictionary search without Blocking
+
+- Assuming each dictionary term equallt likely in query (not really so in practice!), average number of comparisons = (1 + 2x2 + 4x3 + 4) / 8 = **~2.6**
+- Average number of comparison
+
+$$
+{\sum_{level1..,leveln}p(n).n} /n
+$$
+
+
+
+#### Dictionary search with Blocking
+
+- Binary search down 4-term block:
+  - then linear search through terms in block
+- Blocks of 4 (binary tree),
+  - Avg.= (1 + 2.2 + 2.3 + 2.4 + 5) / 8 = **3 comparisons**
+
+- This one is commonly used in search engine
+
+
+
+### Front Coding
+
+- Sorted words commonly have common prefix - store differences only
+
+- **8**automata**8**automate**9**automatic**10**automation
+
+- &rarr; **8**automat*a**1**+e**2**!ic**3**&ion 
+  - Encodes **automat**
+  - Extra length beyond **automat**
+
+
+
+#### RCV1 dictionary compression summary
+
+| Technique                        | Size of MB |
+| -------------------------------- | ---------- |
+| Fixed width                      | 11.2       |
+| Dictionary-as-String w/ pointers | 7.6        |
+| Also, blocking k=4               | 7.1        |
+| Also, blocking + front coding    | 5.9        |
+

@@ -1,0 +1,24 @@
+Binary term-document incidence matrix
+
+- In this structure, it is hard to store due to distinct words are 1 others 0
+  - so lots of 0's
+
+Inverted Index
+
+- Brutus --> 1 2 5 11 30
+  - Incidence index
+  - docID --> in which document that it is occurred
+  - Brutus : Dictionary
+  - 1, 2 .... : Postings (List)
+
+Indexer Step
+
+word word freq. index
+
+The merge operation (Intersection)
+
+Faster 
+
+#### Skip pointers - Skip merger
+
+- 

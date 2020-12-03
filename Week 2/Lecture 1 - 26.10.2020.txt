@@ -1,0 +1,4 @@
+Boolean Retrieval
+
+* The b r m is being able to ask a query that is a Boolean exp.
+  * Boolean Queries are queries usinf  AND, OR and NOT to join

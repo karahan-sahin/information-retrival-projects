@@ -1,0 +1,448 @@
+## Exercise
+
+Assume document size N= 1 million
+
+| term      | doc freq  |idf=log(N/DF)|
+| --------- | --------- |            |
+| very      | 100,000   | log(10^6^ * 10^5^) = 1 |
+| high      | 10,000    |2|
+| recall    | 100       |4|
+| the       | 1,000,000 |-|
+| is        | 950,000   |-|
+| low       | 10,000    |2|
+| and       | 850,000   |-|
+| system    | 1,000     |3|
+| returns   | 1,000     |3|
+| most      | 100,000   |1|
+| of        | 800,000   |-|
+| documents | 1,000     | 3 |
+
+
+
+Q1: very high recall
+
+D1: the recall is very low
+
+D2: the recall is very very very very high and high recall systems returns most the documents
+
+After stopword removal : "the", "is", "and", "of"
+
+### Find Jaccard Coefficient (D1 > D2)
+
+- |A &cap; B| / |A &cup; B|
+
+Q1 = {very, high, recall}
+
+D1 = {recall, very, low}
+
+D2= {recall, very, high, systems, returns, most, documents}
+
+- J(Q1 and D1) = 0.5
+
+- |Q1 &cap; D1| = {very, recall} = 2
+- |Q1 &cup; D1| = {very, high, recall, low} = 4
+- **0.5**
+
+- J(Q1 and D2) &asymp; 0.28
+
+- |Q1 &cap; D2| = {very, high,recall} = 3
+- |Q1 &cup; D2| = {recall, very, high, systems, returns, most, documents} = 7
+- **0.28**
+
+### Cosine similarity (D2 > D1 )
+
+with length normalization using TF-IDF weighting. Use raw term frequencies for TF, rather than log-scaled term frequencies. Use log-scaled frequency for IDF
+
+V = {very, high, recall, low, systems, returns, most, documents} = 8
+
+Q1 = [very, high, recall]
+
+​	  = [ tf=1 x idf=1  1x2 1x4 0  0  0  0  0 ]
+
+​      = [ 1  2  4  0  0  0  0  0 ]
+
+D1 = [ 1  0  4  2  0  0  0  0 ]
+
+D2 = [ 4  4  8  0  3  3  1  3 ]
+
+- (Q1.x1 x D1.x1) + (Q1.x2  x D1.x2) + .... (Q1.xV x D1.xV) = 
+
+cos_sim(Q1, D1) = (1 + 16) /sqrt(21) * sqrt(21) = **0.81**
+
+cos_sim(Q1,D2) =(4 + 8 + 32) / sqrt(21) * sqrt(124) = **0.86**
+
+
+
+## Summary - Vector Space Ranking
+
+* Represent the query as a weighted tf-idf vector
+* **Represent each document as weighted tf-idf vector**
+* Compute the cosine similarity score for the query vector and each document vector
+* Rank documents with respect to the query by score
+* Return the top *K* (=10) to the user
+
+
+
+## Computing cosine 
+
+````pseudocode
+COSINESCORE(q):
+float Scores[N] = 0
+float Length[N]
+for each query term t
+do calcute w~t,q~ and fetch postings list for t
+	for each pair(d, tf~t,d~) in postings list
+	do Scores[d] += w~t,d~ * w~t,q~
+Read the array Length
+for each d
+do Score[d] = Score[d]/Length[d]
+return Top K components of Scores[]
+````
+
+Outline
+
+- Speeding up vector space ranking
+- **Putting together a complete search system**
+  - Will require learning about a number of miscellaneous topics and heuristics
+
+## Efficient cosine ranking
+
+- Find the *K* docs in the collection "nearest" to the query --> *K* largest query-doc cosines.
+- Efficient ranking:
+  - Computing a single cosine efficiently.
+  - Choosing the *K* largest cosine values efficiently
+    - Can we do this without computing all N cosines?
+
+### Special case - unweighted queries
+
+- No weighting on query terms
+  - Assume each **query term occurs only once**
+- **Then for ranking, don't need to normalize query vector**
+
+### Faster cosine: unweighted query
+
+````pseudocode
+FastCosineScore(q)
+float Scores[N] = 0
+for each d
+do Initialize Length[d] to the length of doc d
+for each query term t
+do calculate w~t,q~ and fetch postings list for t
+# set w~t,q~ to 1
+	# for each pair(d,tf~t,d~) in postings list
+	# do add wf~t,d~ to Scores[d]
+	# No need for 2
+Read the array Length[d]
+for each d
+do Divide Scores[d] by Length[d]
+return Top K componets of Scores[]
+````
+
+
+
+## Computing the *K* largest cosines: Selection vs. Sorting
+
+* Typically we want to retrieve the top *K* docs (in the cosine ranking for the query)
+  * not to totally order all docs in the collection
+* **Can we pick off docs with K highest cosines**
+* Let J = number of docs with nonzero cosines
+  * We seek the K best of these J
+
+### Use heap for selecting top *K*
+
+- Binary tree in which each node's value > the values of children (max-heap)
+
+- Takes O(J) time to build the heap. 
+
+- Then, for each of *K* "winners":
+
+  - O(I) time to read the max element, and
+  - O(log J) time to maintain heap property
+
+- O(J) time to select top *K* using heap vs. O(J log J) time when sorting used.
+
+  ![img](https://media.geeksforgeeks.org/wp-content/cdn-uploads/MinHeapAndMaxHeap.png)
+
+#### Bottlenecks
+
+- Primary computational bottleneck in scoring: **cosine computation**
+- Can we avoid this computation?
+- Yes, but may sometimes get it wrong
+  - a doc *not* in the top *K* may creep into the list of *K* output docs
+  - Is this such a bad thing?
+
+#### Cosine similarity is only a proxy
+
+* Users has a task and a query formulation
+* **Cosine matches docs to query**
+* Thus cosine is anyway a proxy for user happiness
+* **If we get a list of K docs "close" to the top K by cosine measure, should be ok**
+
+## Generic Approach
+
+- Find a set A of contenders, with K < |A| << N
+  - ==A does not necessarily contain the top K, but has many docs from among the top K==
+  - ==Return the top K docs in A==
+- Think of A as <u>pruning</u> **non-contenders**
+- The same approach is also used for other (non-cosine) scoring functions
+- **Will look at several schemes following this approach**
+
+### Index Elimination
+
+- Basic algorithm FastCosineScore only considers docs containing at least one query term
+- Take this further:
+  - Only consider high-idf query terms
+  - Only consider docs containing many query terms
+
+#### High-idf query terms only
+
+- For a query such as *catcher in the rye*
+- **Only accumulate scores from <i>catcher</i> and <i>rye</i>** 
+- Intuition: "in" and "the" contribute little to the score and so **don't alter rank-ordering much**
+- Benefit:
+  - **Postings of low-idf terms have many docs --> these (many) docs get eliminated from set A of contenders**
+
+#### Docs containing many terms
+
+- Any docs with at least one query term is a candidate for the top K output list
+- **For multi-term queries, only compute scores for docs containing several of the query terms**
+  - Say, at least 3 out of 4
+  - Threshold must be set by 
+    - Application
+    - Corpus features? 
+- **Easy to implement in postings traversal**
+
+
+
+## Champion List
+
+- Precompute for each dictionary term *t*, the *r* docs of highest weight in *t* 's postings
+  - Call this the <u>champion list</u> for t
+  - (aka <u>fancy list</u> or <u>top docs</u> for t)
+- **Note that r has to be chosen at index build time**
+  - **Thus, it's possible that r < K**
+- At query time, only compute scores for docs in the champion list of some query term
+  - Pick the *K* top-scoring docs from amongst these
+
+Static quality scores
+
+- We want top-ranking documents to be both *relevant* and *authoritative*
+
+- **Relevance is being modeled by cosine scores**
+
+- *Authority* is typically a query-independent property of a document
+
+- Examples of authority signals
+
+  - Wikipedia among websites
+  - Articles in certain newspapers
+  - **A paper with many citations**
+  - **(Pagerank)**
+
+  
+
+## Modeling Authority
+
+- Assign a *query-independent* **quality score** in [0,1] to each document d
+  - Denote this by g(d)
+- **Thus, a quantity like the number of citations is scaled into [0,1]**
+
+### Net score
+
+- Consider a simple total score combining cosine relevance and authority
+- **net_score(q,d) = g(d) + cosine(q,d)**
+  - Can use some other linear combination than an equal weighting
+- **Now, we seek the top K docs by net_score**
+- Now it is calculated with machine learning
+
+Top K by net score - Fast Methods
+
+- First idea: Order all posting by g(d) instead of docID
+- **Key: this is a common ordering for all postings**
+- Thus, can concurrently traverse query terms' postings for
+  - Postings intersection
+  - Cosine score computation
+- Why order postings by g(d)?
+  - Under g(d)-ordering, top-scoring docs likely to appear early in postings traversal
+  - **In time-bound applications (say, we have to return whatever search results we can in 50ms), this allows us to stop posting traversal early**
+    - Short of computing scores for all docs in postings
+
+High and Low Lists
+
+- For each term, we maintain two postings lists called high and low
+  - Think of *high* as the champion list
+- **When traversing postings on a query, only traverse high lists first.**
+  - If we get more than *K* docs, select the top K and stop
+  - Else proceed to get docs from the low lists
+- **Can be used even for simple cosine scores, without global quality g(d)**
+- A means for segmenting index into two <u>tiers</u>
+
+### Tiered indexes
+
+- Break postings up into a hierarchy of lists
+  - Most important
+  - .....
+  - Least important
+- **Can be done by g(d) or another measure**
+- Inverted index thus broken up into <u>tiers</u> of decreasing importance
+- **At query time use top tier unless it fails to yield K docs**
+  - If so drop to lower tiers
+
+
+
+## Cluster Pruning
+
+### Preprocessing
+
+- Pick &#8730;N docs at random: call these *leaders*
+- **For every other doc, pre-compute nearest leader**
+  - Docs attached to a leader: its *followers*
+  - <u>Likely</u>: each leader has ~ &#8730;N followers
+
+### Query Processing
+
+- Process a query as follows
+
+  - Given query *Q*, find its nearest *leader* L
+  - **Seek K nearest docs from among L's followers**
+
+
+![Information retreival, By Hadi Mohammadzadeh](https://image.slidesharecdn.com/informationretreival-120308110116-phpapp02/95/information-retreival-by-hadi-mohammadzadeh-28-728.jpg?cb=1331205081)
+
+Why random sampling?
+
+- Fast
+- Leader reflect data distribution
+
+### General variants of Cluster Pruning
+
+- Have each follower attached to b~1~(e.g 3) nearest leaders.
+- From query, find b~2~ (eg 4) nearest leaders and their followers
+
+
+
+## Parametric and Zone Indexes
+
+- Thus far; a doc has been a sequence of terms
+- **In fact documents have multiple parts, some with special semantics:**
+  - Author
+  - Title
+  - Date of publication
+  - Language
+  - Format
+  - etc.
+- These constitute the **metadata** about the document
+
+### Fields
+
+- We sometimes wish to search by these metadata
+  - E.g. find docs authored by *William Shakespeare* in the year *1601*, containing *alas poor Yorick*
+  -  Year = 1601 is an example of a **field**
+  - Also, author last name = ... etc
+  - **Field or parametric index: postings for each field value**
+  - Field query typically treated as **conjunction**
+    - doc must be authored by Shakespeare
+
+### Zone
+
+- A zone is a region of the doc that can contain an arbitrary amount of text e.g
+  - Title
+  - Abstract
+  - References
+- **Build inverted indexes on zones as well to permit querying**
+  - "find docs with *merchant* in the title zone and matching the query *gentle rain*"
+
+- **Encode zones in dictionary vs postings**
+  - william.title --> 1, 4, 23 ; william.author -> 2, 4, 24
+  - vs
+  - william --> (1, "title"), (2, "author"), (12, "title", "author")
+
+
+
+## Query term proximity
+
+- **Free text queries**: just a set of terms typed into the query box -- common on the web
+- **Users prefer doc in which query terms occur within close proximity of each other**
+- Let *w* be the smallest window in a doc containing all query terms
+  - For the query **strained mercy** the smallest window in the doc *The quality of **mercy is not strained*** is 4 (words)
+  - Would like scoring function to take this into account
+
+Aggregate scores
+
+- We've seen that scoring functions can combine cosine, static quality, pro
+
+
+
+## Query parsers
+
+- Free text query from user may in fact spawn one or more queries to the indexes. Example: *rising interest rates*
+  - Run the query as **a phrase query**
+  - If < K docs contain the phrase *rising interest rates*, run the two phrase queries *rising interest* and *interest rates* (**Bi-phrase search)**
+  - If we still have <K docs, run the **vector space query** *rising interest rates*
+  - Rank matching docs by vector space scoring
+- This sequence is issued by a **query parser**
+
+# Index Compression
+
+
+
+### Why compression (in general)?
+
+- Use less disk space
+  - Saves a little money
+- Keep more stuff in memory
+  - Increases speed
+- Increase speed of data transfer from disk to memory
+  - [read compressed data | decompress] is faster than
+  - [read uncompressed data]
+  - Premise: Decompression algorithms are fast
+    - True of the decompression algorithms we use
+
+### Why compression for inverted indexes?
+
+- **Dictionary**
+  - Make it small enough to keep in main memory
+  - Make it so small that you can keep some postings list in main memory too
+- **Postings file(s)**
+  - Reduce disk space needed
+  - Decrease time needed to read postings lists from disk
+  - Large search engines keep a significant part of the postings in  memory.
+    - Compression lets you keep more in memory
+- We will devise various IR-specific compression schemes
+
+### RCV1: Our collection for this lecture
+
+- Shakespeare's collected works definitely are not large enough for demonstrating many of the points in this course.
+- The collection we will use isn't really large enough either, but it is publicly available and is at least a more plausible example
+- As an example for applying scalable index compression/construction algorithms, we will use Reuters RCV1 collection.
+- This is one year of Reuters newswire
+
+### RCV1 Stats
+
+| symbols | statistic                            | value       |
+| ------- | ------------------------------------ | ----------- |
+| N       | documents                            | 800,000     |
+| L       | avg. # tokens per doc                | 200         |
+| M       | terms(=word types)                   | 400,000     |
+|         | avg. # bytes per token (inc. \s,\W)  | 6           |
+|         | avg. # bytes per token (w/out \s,\W) | 4.5         |
+| T       | tokens                               | 100,000,000 |
+
+![image-20201129190730438](../../../AppData/Roaming/Typora/typora-user-images/image-20201129190730438.png)
+
+## Statistical Properties of Text
+
+- How fast does vocabulary size grow with the size of a corpus?
+- How is the frequency of different words distributed?
+- Such factor affect the performance of information retrieval and can be used to select appropriate term weights and other aspects of an IR system
+
+### Vocabulary vs Collection size
+
+- Heaps' Law: M = kT^b^ 
+- M is the size of the vocabulary, T is the number of tokens in the collection
+- Typical values (for English): 30 =< k =< 100 and b &asymp; 0.5
+- In a log-log plot of vocabulary size M vs. T, Heaps' law predicts a line with slope about 1/2
+  - log M = log k + b*log T
+  - An empirical finding ("empirical law")
+
+![image-20201129191658132](../../../AppData/Roaming/Typora/typora-user-images/image-20201129191658132.png)

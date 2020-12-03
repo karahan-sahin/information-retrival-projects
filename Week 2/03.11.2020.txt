@@ -1,0 +1,44 @@
+Stemming --> recall increases but precision decreases
+
+truncation NLP
+
+dictionaries and tolerant retrieval
+
+
+
+TERM    DOCFREQ   pointer to posting lists
+
+how to quick search --> hash table and trees
+
+Hashes
+
+- need to hash each item
+- Has constant time comp.
+- Faster than a trees
+
+Tree : Balanced-trees
+
+- Simplest binary trees
+- more usual: B-trees
+- solves the prefix problem (hyp-)
+- Slower O(log N) [and this requires balanced tree]
+- Rebalancing binary trees is expensice
+  - But B-trees mitigate the rebalancing problem
+
+Wildcard queries
+
+- Dont know correct spelling
+  - Sydney vs Sidney
+    - S*dney
+- They lnow multiple spelling
+
+- mon*: find all docs cont. any term begin with *mon*
+  - Easy with B-tree dict. retrieve all terms *t* 
+- If in middle
+- c*sar
+  - c* and *sar
+- Permuterm --> term mapping
+  - Basic id. Rotate evetry wild. que. so that the * occurs at the end
+- Either store dic. item and its rotations or store dic itms and map 
+- Bi-gram indexes
+
