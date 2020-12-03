@@ -182,7 +182,6 @@ while True:
 ````
 
 
-
 ![damerau_levenshtein_input_2](Examples/damerau_levenshtein_input_2.PNG)
 
 ![damerau_levenshtein_input_3](Examples/damerau_levenshtein_input_3.PNG)
