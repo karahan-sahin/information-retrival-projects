@@ -1,0 +1,331 @@
+# Index Compression(Continued)
+
+
+
+### Fixed Length Codes
+
+- Binary representation
+  - ASCII
+  - Representations..
+
+#### Most frequent letters in English
+
+- Some are more frequently used than others
+- More frequent letters
+  - E T A O I N S H R D L U
+- Also: bigrams
+  - TH HE IN ER AN RE ND AT ON NT
+- More common terms less bits, less common terms mo
+
+### Huffman Encoding
+
+- Average of 5 bits per character (37.5% compression compared to 8 bits)
+- Based on frequency distribution of symbols
+- Algorithm: iteratively build a tree of symbols starting with the two least frequent symbols
+- Creates Huffman Tree
+
+| Symbols | Frequency |
+| ------- | --------- |
+| A       | 7         |
+| B       | 4         |
+| C       | 10        |
+| D       | 5         |
+| E       | **2**     |
+| F       | 11        |
+| G       | 15        |
+| H       | **3**     |
+| I       | 7         |
+| J       | 8         |
+
+- Each operation creates a new node
+
+- E(2) + H(3) --> EH(5)
+- B(4) + D(5) --> BD(9)
+- A(7) + EH(5) --> AEH(12)
+- I(7) + J(8) --> IJ(15)
+- C(10) + BD(9) --> CBD(19)
+- F(11) + AEH(12) --> FAEH(22)
+- G(15) + IJ(15) --> GIJ(30)
+- CBD(19) + FAEH(22) --> CBDFAEH + GIJ --> TOP
+
+Huffman tree picture
+
+- Children of this tree 0 and 1
+- Start from the root and go to child as 0 and 1's
+- Bottom-up tree traversal
+
+## Postings Compression
+
+- The postings file is much larger than the dictionary, factor of at least 10
+- Key: store each posting compactly
+- A posting for our purposes is a docID
+- For Reuters (800,000 documents), we would use 32 bits per docID when using 4-byte integers.
+- Alternatively, we can use log~2~ 800,000 &asymp; 20 bits per docID
+- Our goal: **use a lot less than 20 bits per docID** 
+
+#### Postings: two conflicting forces
+
+- A term like **arachnocentric** occurs in maybe one doc out of a million - we would like to store this postings using log~2~ 1 M ~ 20 bits
+- A term like *the* occurs in virtually every doc, so **20 bits/postings is too expensive**
+  - Prefer 0/1 bitmap vector in this case
+
+#### Postings file entry
+
+- We store the list of docs containing a term in increasing order of docID.
+  - computer: 33, 47, 154, 159, 202
+- **Consequence**: it suffices to store ***gaps***
+  - 33,14,107,5,43
+- <u>Hope</u>: **most gaps** can be encoded/stored with **far fewer than 20 bits**
+
+ 
+
+### Variable Length Encoding
+
+- Aim:
+  - For *arachnocentric*, we will use ~20 bits/gap entry
+  - For *the*, we will use ~1 bit/gap entry
+- If the average gap for a term is *G*, we want use ~ log~2~ G bits/gap entry
+- <u>Key challenge</u>: **encode every integer (gap)** with about as few bits as needed for that integer
+- This requires **a variable length encoding**
+- Variable length codes achieve this by **using short codes for small numbers**
+
+### Variable Byte (VB) Codes
+
+- For the **gap value G**, we want to **use close to the fewest bytes** needed **to log~2~ G bits**
+- Begin with one byte to G and dedicate 1 bit in it to be a <u>continuation</u> bit *c*
+  - Example: int(5) -->  if continues: **0** if ends **1** + 0000101
+    - Start with either 0 or 1
+    - Binary(5) --> 101
+    - 4 bits in between, fill 0
+    - (0/1) + fill(0) + binary()
+- If G &leq; 127, **binary-encode it in the 7 available bits** and **set *c* = 1**
+- Else encode G's lower-order 7 bits and then **use additional bytes to encode the higher order bits** using the same algorithm
+  - High order bits: Last bit on the 8 bits
+  - Low-order bits: 7 bits shows the integer
+- At the end set the continuation bit of the last byte to 1 (*c* = 1) -- and for the other bytes (*c* = 0)
+- binary(214577) --> 1101(highest) - 0001100(higher) - 0110001(lowest order)
+  - (0) 000 1101
+  - (0) 0001100
+  - (1) 0110001
+- binary(824) --> 110 - 0111000
+  - (0) 0000 110
+  - (1) 0111000
+
+| docIDs  | 824                      | 829      | 215406                                 |
+| ------- | ------------------------ | -------- | -------------------------------------- |
+| gaps    |                          | 5        | 214577                                 |
+| VB code | 0-0000-110 <br>1-0111000 | 10000101 | 0-000-1101 <br>0-0001100 <br>1-0110001 |
+
+- Postings will be stored as the byte concatenation
+  -  (0)0000110(1)0111000  (1)0000101  (0)0001101(0)0001100(1)0110001
+  - Key property: VB-encoded postings are uniquely prefix-decodable
+- For small gap (for example 5), VB uses a whole byte
+
+#### Other variable unit codes
+
+- Instead of bytes, we can also use a different "unit of alignment":
+  - 32 bits (words)
+  - 16 bits
+  -  4 bit (nibbles)
+- Variable byte alignment wastes space **if you have many small gaps** - **nibbles do better in such cases.**
+- Variable byte codes: **Used by many commercial/research systems**
+
+#### Unary code
+
+- Represent *n* as *n* 1s with a final 0
+- Unary code for 3 is 1110
+- Unary code for 40 is 11111111111111111111111111111111110
+- This doesn't look promising, but...
+
+### Gamma codes
+
+- We can compress better with **<u>bit-level</u> codes**
+  - The Gamma code is the best known of these
+- Represent a gap *G* as a pair: *length* and *offset*
+- *offset* is *G* in binary, with the leading bit cut off
+  - For example: 13 --> (1)101 --> 101
+- *length* is the length of offset 
+  - For 13 (offset 101), this is 3
+- We encode length with unary code: 1110
+- Gamma code of 13 is the concatenation of *length* and *offset*: 1110101
+
+#### Gamma code properties
+
+- *G* is encoded using 2|_log G_| + 1 bits
+  - Length of offset is |log G| bits
+  - Length of length is |log G| + 1 bits
+- All gamma codes have an odd number of bits
+- Almost within a factor of 2 of best possible, log~2~ G
+
+* Gamma code is uniquely prefix-decodable, like VB
+
+#### Gamma seldom used in practice
+
+- **Machine have word boundaries -- 8, 16, 32, 64 bits**
+  - Operations that cross word boundaries are slower
+- Compressing and manipulating at the granularity of bits can be slow
+- Variable byte encoding is aligned and thus potentially more efficient
+- Regardless of efficiency, **variable byte is conceptually simpler at little additional space cost**
+
+RCV1 Compression
+
+### Index Compression Summary
+
+- We can now create an index for high efficient retrieval that is very space efficient
+- Only 4% of the total size of the collection
+- Only 10-15% of the total size of the <u>text</u> in the collection
+- However, we've ignored positional information
+- Hence, space savings are less for indexes used in practice
+  - But techniques substantially the same.
+
+
+
+# Index Construction
+
+
+
+## Hardware Basics
+
+- Access to data in memory is much faster than access data on disk
+- Disk seeks: **No data transferred** from disk **while the disk head is being positioned**
+  - **Disk seek time** is the amount of time to position disk head on the appropriate track
+  - **Rotational latency** is the time between track is founded and disk spins to find the right sector on the track
+  - Disk seek time >  Rotational latency
+- Therefore: Transferring one large chunk of data from disk to memory is faster than transferring many small chunks
+- Disk I/O is block-based: Reading and writing of entire blocks (as opposed to smaller chunks)
+- Block sizes: 8 KB to 256 KB
+- Servers used in IR systems now typically have several GB of main memory
+- Available disk space is several orders of magnitude larger.
+- **Fault tolerance is very expensive**. It is much cheaper to use **many regular machines** rather than one fault tolerant machine
+
+
+
+#### Recall sort-based index construction
+
+- Documents are parsed to extract words and these are saved with the Document ID
+- Assignment 2
+
+### Key step
+
+* After all documents have been parsed, the inverted file is **sorted by terms**
+* **We focus on this sort step. We have 100 M items to sort**
+
+## Sort-based index construction
+
+- As we build the index, we parse docs one at a time
+- The final postings for any terms are incomplete until the end
+- At 12 bytes per non-positional postings entry (termID, docID, freq), demands a lot of storage for large collections
+- T = 100,000,000 in the case of RCV1
+  - So... we can do this in memory(1.2 GB), but typical collections are much larger. E.g the New York Times provides an index of > 150 years of newswire
+- Thus: We need to store intermediate results on disk (Need to use an external sorting algorithm)
+
+### BSBI: Blocked sort-based Indexing (Sorting with fewer disk seeks)
+
+- 12-byte (4+4+4) records (termID, docID, freq)
+- These are generated as we parse docs.
+- Must sort 100M such 12-byte records by term
+- Define a <u>Block</u> ~ 10 M such records
+  - Can easily fit a couple into memory
+  - Will have 10 such blocks to start with
+- Basic idea of algorithm:
+  - Accumulate postings for each block, sort, write to disk
+  - Then merge the blocks into one long sorted order
+
+![BSMI](../Week 7/BSMI.PNG)
+
+#### Blocked sort-based Indexing
+
+````pseudocode
+BSBIndexConstruction()
+n <-- 0		 # Idea of each block
+while (all documents have not been processed)
+do n <-- n+1
+	block <-- ParseNextBlock() # get term docID pair
+	BSBI-Invert(block) # sorts the docIDs 
+	WriteBlockToDisk(block, f~n~) # write each to disk
+MergeBlocks(f~1~, ..., f~n~; f~merged~)
+````
+
+
+
+#### Problems with sort-based algorithm
+
+* Our assumption was: we can keep the dictionary in the memory.
+* We need the dictionary (which grows dynamically) in order to implement a **term to termID mapping**
+* Actually, we could work with term, docID postings instead of termID, docID postings..
+* ...but then intermediate files become very large. 
+* We would end up with a scalable, but very slow index construction method
+
+### SPIMI: Single Pass In-Memory Indexing
+
+- Key idea 1: **Generate separate dictionaries for each block** -- no need to maintain term-termID mapping across blocks.
+  - (block_1, dictionary_1), (block_2, dictionary_2)....
+  - Store the dictionary in the block itself
+- Key idea 2: Accumulate **postings in postings lists as they occur**
+  - creates postings_list for the token as the token is processed
+- With these two ideas we can generate a complete inverted index for each block
+- These separate indexes can then be merged into one big index
+
+````pseudocode
+SPIMI-Invert(token_stream)
+output_file = New File()
+dictionary = New Hash()
+# loop for merge
+while (free block memory available)
+do token <-- next(token_stream)
+	if term(token) not in dictionary
+    	then postings_list = dictionary.update(term(token))
+    	else postings_list = dictionary[term(token)]
+    	# p_list = [(term, d1), (term, d3), .....]
+    if full(postings_list) # If the capacity is full
+    	then postings_list = DoublePostingsList_Size(postings_list)
+    postings_list.append(docID)
+sorted_terms <-- dictionary.sort()
+WriteBlockToDisk(sorted_terms, dictionary, output_file)
+return output_file
+````
+
+- Sample code : https://github.com/Mikkicon/Information_Retrieval/blob/master/Petrenko05.py
+- Merging of blocks is the same as BSBI
+
+#### SPIMI: Compression
+
+- Compression makes SPIMI even more efficient
+  - Compression of terms (Dictionary-as-a-string)
+  - Compression of postings (Variable byte encoding)
+
+
+
+### Distributed indexing
+
+- For web-scale indexing
+  - Must use a distributed computing cluster
+- Individual machines are fault-prone
+  - Can unpredictably slow down or fail
+- How do we exploit such a pool of machines?
+
+- Maintain a *master* machine directing the indexing job considered "safe"
+- Break up indexing into sets of (parallel) tasks.
+- Master machine assigns each task to an idle machine from a pool
+
+#### Parallel Tasks
+
+- We will use two sets of parallel tasks
+
+#####     1. Parsers
+
+- Master assigns a split to an idle parser machine
+- Parser reads a document at a time and **emits (term, docID) pairs**
+- Parser writes pairs into *j* number of partitions
+- Each partition is for a range of terms' first letters
+  - example: (a-f), (g-p), (q-z) -- here *j* = 3
+
+#####     2. Inverters
+
+- An inverter collects all (term, docID) pairs (=postings) for one term-partition
+- Sorts and writes to posting lists
+
+- Break the input document collection into *splits*
+- Each split is **a subset of documents** (corresponding to blocks in BSBI/SPIMI)
+
+![distributed indexing dflow](../Week 7/distributed indexing dflow.PNG)

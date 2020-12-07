@@ -8,8 +8,6 @@
 - Several of the preprocessing steps can be viewed as lossy compression: case folding, stop words, stemming, number elimination
 - **Lossless compression: All information is preserved**
 
-
-
 ## Statistical properties of text (Continued)
 
 
@@ -130,8 +128,6 @@ $$
 - Avg. 8 bytes per term in term string
 - 400K terms x 19 bytes = 7.6 MB (Against 11.2 MB for fixed width)
 
-
-
 ### Blocking
 
 - Store pointers to every k^th^ term string
@@ -164,6 +160,8 @@ $$
 
 
 
+![image-20201205100120710](../../../AppData/Roaming/Typora/typora-user-images/image-20201205100120710.png)
+
 #### Dictionary search with Blocking
 
 - Binary search down 4-term block:
@@ -173,7 +171,7 @@ $$
 
 - This one is commonly used in search engine
 
-
+![image-20201205100110870](../../../AppData/Roaming/Typora/typora-user-images/image-20201205100110870.png)
 
 ### Front Coding
 
@@ -184,8 +182,8 @@ $$
 - &rarr; **8**automat*a**1**+e**2**!ic**3**&ion 
   - Encodes **automat**
   - Extra length beyond **automat**
-
-
+  
+  
 
 #### RCV1 dictionary compression summary
 
