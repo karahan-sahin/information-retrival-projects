@@ -1,0 +1,67 @@
+# CO-Search: COVID-19 Information Retrieval with 
+
+- ### Semantic Search, 
+
+- ### Question Answering, and
+
+- ### Abstractive Summarization
+
+
+
+## Abstract
+
+- The **retriever** is built from a **Siamese-**
+  **BERT encoder** that is linearly composed 
+  - with a **TF-IDF vectorizer** and,
+  - **reciprocal-rank** fused with a **BM25 vectorizer**
+- The **ranker** is composed of
+  - a
+    multi-hop **question-answering module**
+  - a **multi-paragraph**
+    **abstractive summarizer** adjust retriever scores
+- To account for the domain-specific
+  and relatively limited dataset, we generate a **bipartite graph of document paragraphs**
+  **and citations**, creating 1.3 million (citation title, paragraph) tuples **for training the**
+  **encoder**
+- several key metrics:
+  - normalized discounted cumulative
+    gain, 
+  - precision, 
+  - mean average precision, 
+  - and binary preference.
+
+
+
+## Introduction
+
+- Retrieval is done using 
+  - a semantic model, and
+  - two keyword models. 
+
+- For the semantic model, we create
+  a bipartite graph from paragraphs and their cited articles,
+-  to generate over 2.2 million (paragraph, title)
+  tuples that
+  - to **train a Siamese-BERT** (SBERT) model 
+  - on the **binary task of classifying a**
+    **title as being cited by a paragraph**
+
+
+
+### BERT
+
+BERT is **a method of pretraining language representations** that was used to create models that NLP practicioners can then download and use for free. 
+
+You can either **use these models to extract high quality language features from your text data**, or
+
+You can fine-tune these models on a specific task (classification, entity recognition, question answering, etc.) with your own data to produce state of the art predictions.
+
+
+
+
+
+QA Datasets
+
+- PubMedQA
+- MS-MARCO
+

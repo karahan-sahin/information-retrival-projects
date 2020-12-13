@@ -1,0 +1,226 @@
+# Index Construction (Continued)
+
+
+
+## Dynamic Indexing
+
+- Up to now, we have assumed that collections are static.
+- They rarely are:
+  - Documents come in over time and need to be inserted.
+  - Documents are deleted and modified
+- This means that the dictionary and postings lists have to be modified:
+  - Postings updates for terms already in dictionary
+  - New terms added to dictionary
+
+### Simplest Approach
+
+- **Maintain "big" main index**
+- New docs go into "small" auxiliary index
+- Search across both, merge results
+- Deletions
+  - **Invalidation bit-vector for deleted docs**
+  - Filter docs output on a search result by this invalidation bit-vector
+- Periodically, re-index into one main index
+
+#### Issues with main and auxiliary indexes
+
+- Problem of frequent merges
+- Poor performance during merge
+- Actually:
+  - Merging of the auxiliary index into the main index is efficient if we **keep a separate file for each posting list**
+  - Merge is the same as a simple append
+  - But then we would need a lot of file - inefficient for O/S
+- Assumption for the rest of the lecture: **The index is one big file**
+- In reality: Use a scheme somewhere in between (split very large postings lists, collect postings list of length 1 in one file)
+
+
+
+- Collection-wide statistics are hard to maintain
+- E.g when we spoke of spell-correction: which of several corrected alternatives do we present to the user?
+  - We said, pick the one with the most hits
+- How do we maintain the top ones with multiple indexes and invalidation bit vectors?
+  - One possibility: ignore everything but the main index for such ordering
+
+#### Dynamic indexing at search engines
+
+- All the large search engines now do dynamic indexing
+- Their indices have frequent incremental changes
+  - News items, blogs, new topical web pages
+- But (sometimes/typically) they also periodically reconstruct the index from scratch
+  - **Query processing is then switched to the new index and the old index is then deleted**
+
+### Building Positional Indexes
+
+- Basically, the same problem except that the intermediate data structures are large
+
+# Evaluation of IR Systems
+
+
+
+## Measures for a search engine
+
+- How **fast** does it **index**
+  - Number of documents/hour
+- How **fast** does it **search**
+  - Latency as a function of index size
+- How large is the document collection
+- Expressiveness of query language
+  - Ability to express complex information needs
+  - Speed on complex queries
+- Uncluttered User Interface
+- Is it free?
+- All of the preceding criteria are *measurable*: we can quantify speed/size
+  - we can make expressiveness semiprecise
+- The key measure: user happiness
+  - What is this?
+  - Speed of response/size of index are factors
+  - Fast, but useless answer won't make a user happy
+- **Need a way of quantifying user happiness**
+
+###  Measuring user happiness
+
+- Issue: who is the user we are trying to make happy?
+  - Depends on the setting
+- <u>Web engine</u>:
+  - Users find what they want and return to the engine
+    - Can measure **rate of return users**
+  - Advertisers also users of modern search engines.
+    - **Happy when customers click through to their sites and make purchase**
+- <u>eCommerce site</u>: user finds what they want and buy
+  - Is it the end-user, the eCommerce site, whose happiness we measure?
+  - Measure time to purchase, or fraction of searchers who become buyers?
+
+
+
+#### Happiness: elusive to measure
+
+- Most common proxy: *relevance* of search results
+- Relevance measurement requires 3 elements:
+  - A benchmark **document collection**
+    - TREC
+  - A benchmark suite of **information needs** (that can be expressed as queries)
+    - Example:
+      - **Information need**: I'm looking for information how the coronavirus responds to changes in weather.
+      - **Query**: coronavirus Sars-Cov-2 weather
+  - A usually binary assessment of either **Relevant** or **Non-relevant** for each query and each document
+- **Information need** is translated into a **query**
+- Relevance is assessed relative to the **information need** *not* the **query** 
+- ==You evaluate whether the doc addresses the information need, not whether it has these words==
+
+
+
+![image-20201208001016398](../../../AppData/Roaming/Typora/typora-user-images/image-20201208001016398.png)
+
+
+
+## Unranked Retrieval Evaluation
+
+- Given a query, an engine classifies each doc as "Relevant" or "Non-relevant"
+
+|               | Relevant            | Non-Relevant        |
+| ------------- | ------------------- | ------------------- |
+| Retrieved     | tp (true positive)  | fp (false positive) |
+| Not Retrieved | fn (false negative) | tn (true negative)  |
+
+- The **accuracy** of an engine is the fraction of these classifications that are correct: (tp + tn) / (tp + fp + tn + fn)
+- **Accuracy** is a commonly used evaluation measure in machine learning classification work. Why is this not a very useful evaluation measure in IR?
+  - Lots of true negatives since there are lots of unrelated documents
+
+### Precision and Recall
+
+- **Precision**: the fraction of **retrieved docs** that are **relevant**
+  - P(Relevant | Retrieved)
+  - **P = tp / (tp + fp)**
+- **Recall**: the fraction of **relevant docs** that are **retrieved**
+  - P(Retrieved | Relevant)
+  - **R = tp / (tp + fn)**
+
+- You can get high recall (but low precision) by retrieving all docs for all queries
+- **Recall is a non-decreasing function** of the number of doc retrieved
+  - Since in equation: true positive / all relevant , the total number of relevant document is an independent variable from number of retrieved relevant document 
+- In a good system, precision decreases as the number of docs retrieved (or as recall) increases
+  - This is not a theorem, but a result with strong empirical confirmation
+
+### A combined measure: F measure
+
+- Combined measure that assesses precision/recall trade-off is **F-measure** (weighted harmonic mean):
+
+$$
+F=\dfrac{1}{\alpha \dfrac{1}{P} + (1-\alpha)\dfrac{1}{R}}
+ = \dfrac{(\beta^{2}+1)PR}{\beta^{2}P +R}
+$$
+
+- For example, some system with
+  - Precision = ~0
+  - Recall = 100
+- The arithmetic mean is **50**
+  - Not a good measure
+- But if this measure more higher Recall means denominator increase and lower score
+- **Closer to the small value (minimum)** in this case Precision
+- People usually use **balanced** F~1~ - measure
+  - in example with &beta; = 1 or &alpha; = 1/2
+
+$$
+F_{1} = \dfrac{2PR}{P+R}
+$$
+
+- If see F-measure is not specified, it is F~1~ 
+- If &beta; is between 0 and 1, then you are to give higher weight to precision
+- In IR System, **the higher precision is much preferred**
+  - Better measure of user happiness
+- If you are to **compare two IR systems** regarding to their F-measures
+  - You should give a value 1 &le; &beta; &le; 0 
+    - If precision is more important
+  - But some systems require higher importance to recall
+    - Example: Covid-19 patients list
+    - Even though you might **have false positives**
+    - Much better if you have higher recall
+    - In which case, give higher value to &alpha;
+
+## Ranked Retrieval Evaluation
+
+- Evaluation of ranked results
+  - The system can return any number of results
+  - By taking various numbers of the top returned documents(levels of recall), the evaluator can produce a *precision-recall curve*
+
+### Precision-recall Curve
+
+![image-20201210204846514](../../../AppData/Roaming/Typora/typora-user-images/image-20201210204846514.png)
+
+
+
+### ROC (Receiver Operating Characteristics) Curve
+
+![image-20201210205159038](../../../AppData/Roaming/Typora/typora-user-images/image-20201210205159038.png)
+
+- Very commonly used curve
+- More area under the curve, better to use
+
+#### Averaging over queries
+
+- A precision-recall graph for one query isn't a very sensible thing to look at
+- You need to **average performance over a whole bunch of queries**
+- But there's a technical issue:
+  - Precision-recall calculations place some points on the graph
+  - How do you determine **a value(interpolate) between the points**?
+
+### Interpolated Precision
+
+- Idea: If locally precision increases with increasing recall, then you should get to count that..
+- So you **max of precisions** to right of value
+
+![image-20201210220103502](../../../AppData/Roaming/Typora/typora-user-images/image-20201210220103502.png)
+
+#### Evaluation
+
+- Graphs are good, but people want summary measures!
+  - Precision at fixed retrieval level
+    - Precision-at-k: Precision of top *k* results
+    - Perhaps appropriate for most web search: all people want good matched on the first one or two results pages
+    - But: averages badly and has an arbitrary parameter of *k*
+  - **11-points interpolated average**
+    - The standard measure in the early TREC competitions:
+    - You take the precision at 11 levels of recall varying from 0 to 1 using interpolation, and average them
+    - Evaluates performance at all recall levels
+
+![image-20201210221219428](../../../AppData/Roaming/Typora/typora-user-images/image-20201210221219428.png)
