@@ -1,0 +1,277 @@
+# Evaluation of IR Systems (Cont.)
+
+
+
+### What if the results are not in a list?
+
+-  Suppose there's only one Relevant Document
+- Scenarios:
+  - known-item search
+  - navigational queries
+  - looking for a fact
+- Search duration ~ Rank of the answer
+  - measures a user's effort
+
+### Mean Reciprocal Rank
+
+- Consider rank position, K, of first relevant doc
+  - Could be -- only clicked doc
+- Reciprocal Rank score = 1 / K
+- MRR is the mean RR across multiple queries
+
+
+
+## Creating Test Collections for IR Evaluation
+
+
+
+### From document collections to test collections
+
+- Still need 
+  - Test queries
+  - Relevance assessments
+- Test queries
+  - Must be germane to docs available
+  - Best designed by domain experts
+- Relevance assessments
+  - Human judges, time-consuming
+  - Are human panels perfect?
+
+### Kappa measure for inter-judge (dis)agreement
+
+- Kappa measure
+  - Agreement measure among judges
+  - Designed for categorical judgements
+  - Corrects for chance agreement
+- Kappa = [ P(A) - P(E) ] / [ 1 - P(E) ]
+- P(A) -- proportion of time judges agree
+- P(E) -- what agreement would be by chance
+- Kappa = 0 for chance agreement, 1 for total agreement
+- Kappa < 0 --> worst them random
+
+Example4
+
+![image-20201214215443602](../../../AppData/Roaming/Typora/typora-user-images/image-20201214215443602.png)
+
+- P(A) = (300+70)/400 = 0.925
+- Proportion of times Judge 1 said "yes" = 320/400
+- Proportion of times Judge 2 said "yes" = 310/400
+- Probability that both would say "yes" randomly = (320/400) * (310/400) = 0.62
+- Probability that both would say "no" randomly = (80/400) * (90/400) = 0.045
+- P(E) = 0.62 + 0.045 = 0.665
+- Kappa = (0.925 - 0.665) / (1 - 0.665) = 0.776
+
+- As a rule of thumb:
+  - Kappa > 0.8: "good agreement"
+  - 0.67 < Kappa < .8 : "fair agreement"
+  - Kappa < 0.67: "data provides dubious basis for evaluation"
+  - But, depends on purpose of study
+- For >2 judges: average **pairwise** Kappas
+
+Impact of Inter-judge Agreement
+
+- Impact on **absolute** performance measure can be significant (0.32 vs 0.39)
+- Little impact on ranking of different systems or **relative** performance
+- Suppose we want to know if algorithm A is better than algorithm B
+- A standard IR experiment will give us a reliable system 
+
+## Results Presentation
+
+### Summaries
+
+- Having ranked the document matching a query, we wish to present a results list
+- Most commonly, a list of the document titles plus a short summary
+
+
+
+- The title is often automatically extracted from document metadata. What about the summaries?
+  - This description is crucial
+  - User can identify good/relevant hits based on description
+- Two basic kinds:
+  - Static
+  - Dynamic
+- A **static summary** of a document is always the same, regardless of the query that hit the doc
+- A **dynamic summary** is a *query-dependent* attempt to explain why the document was retrieved for the query at hand
+
+#### Static Summaries
+
+- In typical systems, the static summary is a subset of the document
+- Simplest heuristic: the first 50 (or so -- this can be varies words of the document)
+  - Summary cached at indexing time
+- More sophisticated: extract from each document a set of "key" sentences
+  - Simple NLP heuristic to score each sentence
+  - Summary is made up of top-scoring sentences
+- More sophisticated: NLP used to synthesize a summary
+  - Seldom used in IR: **text summarization work**
+
+#### Dynamic Summaries
+
+- Present one or more "windows" within the document that contain several of the query terms
+  - "KWIC" snippets: Keyword in Context presentation
+
+# Link Analysis
+
+
+
+## The Web as a Directed Graph
+
+![image-20201217234741025](../../../AppData/Roaming/Typora/typora-user-images/image-20201217234741025.png)
+
+### Assumption 1
+
+A hyperlink between pages denotes author perceived relevance (Quality Signal)
+
+### Assumption 2
+
+The text in the anchor of the hyperlink describes the target page (Textual Context)
+
+### Anchor Text
+
+- For **IBM** query how to distinguish between:
+  - IBM's home page (mostly graphical)
+    - Must be higher ranked those below
+  - IBM's copyright page (high term freq for 'ibm')
+  - Rival's spam page (arbitrarily high term freq)
+
+#### Indexing anchor text
+
+- When indexing a document *D*, include anchor text from links pointing to *D*
+
+
+
+- Can sometimes have unexpected side effects (aka Google bombs)
+  - Example: miserable failure == President of USA
+  - Anchor text directed to White House
+
+
+
+### Bow-Tie Model of the Web
+
+pic
+
+### Query-independent ordering
+
+- First generation: using link counts as simple measures of popularity
+- Two basic suggestions:
+  - **Undirected Popularity**:
+    - Each page gets a score = | in-links | + | out-links |
+  - **Directed Popularity:**
+    - Score of a page = | in-links |
+
+### Query Processing
+
+- First retrieve all pages meeting the text query
+- Order these by their link popularity (either variant on the previous slide)
+- More nuanced -- use link counts as a measure of static goodness, combined with text match score
+
+#### Spamming Simple Popularity
+
+- How do you spam each of the following each of the following heuristics so your page gets a high score?
+  - Out link: give bunch of out-links
+  - In link: create bunch of websites and give links to them
+- Each page gets a static score = | in-links | + | out-links |
+- Static score of each page = | in-links |
+- In general, not all neighbors contribute equally to the importance of a node. Defined as "prestige" in social network
+  - Not only quantity of friends but also **quality** of friends
+- A measure that models this: **PageRank**, where each neighbor contributes proportionally to its own score (importance)
+
+### Model behind PageRank: Random Walk
+
+- Imagine a browser doing a random walk on pages
+  - Starts at a random page
+  - At each step, go out of the current page along one of the links on that page, equiprobably
+- "In the steady state" each page has a long term visit rate
+- This long-term visit rate is the page's PageRank
+
+#### Not quite enough
+
+- The web is full of dead-ends.
+  - Random walk can get stuck in dead-ends
+  - Makes no sense to talk about long-term visit rates
+
+#### Teleporting
+
+- At a dead end, jump to a random web page.
+- ==At any non-dead end, with probability *p*, jump to a random web page==
+  - With remaining probability (1 - *p*), go out on a random link
+  - *p* is a parameter (example: 0.1, 0.15)
+- Why?
+  - Cluster of web pages, gives link to each other 
+  - Mutual admiration societies?
+
+#### Result of teleporting
+
+- Now cannot get stuck locally
+- There is a long-term rate at which any page is visited
+- How do we compute this visit rate?
+
+### Formalization of Random Walk: Markov Chains
+
+- A Markov chain consists of *n* <u>states</u> + an *n* x *n* <u>transition probability matrix</u> **P**
+  - ==state = Page==
+  - At each step, we are on exactly one of the pages
+- For *I* &le; i,j &le; n, the matrix entry P~ij~ tells us the probability that ==*j* is the next page, given we are currently on page *i*.==
+- Clearly, for all i, $\sum_{j=1}^{N} P_{ij} = 1$
+
+![image-20201217234706954](../../../AppData/Roaming/Typora/typora-user-images/image-20201217234706954.png)
+
+
+
+##### Web Graph
+
+![image-20201217234657140](../../../AppData/Roaming/Typora/typora-user-images/image-20201217234657140.png)
+
+#### Link Matrix (Adjacency Matrix)
+
+- For each page, if page d~1~ has link to d~1~ to all possible pages containing itself d~1,N~, put binary value to the matrix for the given graph below
+
+![image-20201217235141865](../../../AppData/Roaming/Typora/typora-user-images/image-20201217235141865.png)
+
+
+
+#### Transition Probability Matrix
+
+- For given Link Matrix, calculate the possibility of the next page for the given link using the row
+
+![image-20201217235314483](../../../AppData/Roaming/Typora/typora-user-images/image-20201217235314483.png)
+
+
+
+### Long-term Visit Rate
+
+- Recall: PageRank = long-term visit rate
+- Long-term visit rate of page *d* is the probability that a web surfer is at page *d* at a given point in time
+- Next: what properties must hold of the web graph for the long-term visit rate to be well defined?
+  - The web graph must correspond to an **ergodic** Markov Chain
+
+#### Ergodic Markov Chains
+
+- A Markov chain is ergodic if
+  - There exists a positive integer T~0~, such that for all pairs of states i,j ; 
+    - if it is started at time 0 in state i,
+    - then for T > T~0~, the probability of being in state j at time T is greater than 0
+- A Markov chain is ergodic if and only if
+  - It is **irreducible**
+    - Irreducibility: There is a path from any page to any other page
+  - It is **aperiodic**
+    - Aperiodicity: The pages cannot be partitioned such that all state transitions occur cyclically from one partition to the other.
+
+- **Theorem**: For any ergodic Markov chain, there is a <u>long-term visit rate for each state</u> 
+  - Steady-state probability distribution
+- ==Over a long time-period, we visit each state in proportion to this rate==
+- It doesn't matter where we start
+- Teleporting makes the web graph ergodic
+  - Web-graph + teleporting has a steady-state probability distribution
+  - Each page in the web-graph + teleporting has a PageRank
+
+### Teleporting -- to get us of dead ends
+
+- At a dead end, jump to a random web page with probability 1/N
+- Suppose the **teleportation rate** is given as 10% (note that it's a **parameter**)
+- At a **non-dead end**, with probability 10%, jump to a random web page (to each with a probability of 0.1/N ).
+- With remaining probability (90%), go out on a random hyperlink.
+  - For example, if the page has 4 outgoing links:
+  - Randomly choose one with probability (1 - 0.10) / 4 = 0.225
+- Note: "jumping" from dead end is independent from teleportation rate
+
+![image-20201218164443145](../../../AppData/Roaming/Typora/typora-user-images/image-20201218164443145.png)
